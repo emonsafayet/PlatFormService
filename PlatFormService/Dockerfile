@@ -1,26 +1,24 @@
-FROM microsoft/dotnet:sdk AS build-env
-
-WORKDIR /app
-
+FROM mcr.microsoft.com/dotnet/sdk:5.0 AS build
+WORKDIR /src
+ENV ASPNETCORE_URLS=http://+:80  
+EXPOSE 80
 # Copy csproj and restore as distinct layers
 
-COPY *.csproj ./
-
-RUN dotnet restore
+COPY ["PlatFormService/*.csproj", "PlatFormService/"]
+RUN dotnet restore "PlatFormService/PlatFormService.csproj"
 
 # Copy everything else and build
 
-COPY . ./
+COPY . .
+WORKDIR "/src/PlatFormService"
+RUN dotnet build "PlatFormService.csproj" -c Release -o /app
 
-RUN dotnet publish -c Release -o out
+FROM build AS publish
+RUN dotnet publish "PlatFormService.csproj" -c Release -o /app
 
-# Build runtime image
-
-FROM microsoft/dotnet:aspnetcore-runtime
-
+FROM build AS final
 WORKDIR /app
-
-COPY --from=build-env /app/out .
+COPY --from=publish /app .
 
 ENTRYPOINT ["dotnet", "PlatFormService.dll"]
 
