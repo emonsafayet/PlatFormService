@@ -4,9 +4,11 @@ using Microsoft.AspNetCore.Mvc;
 using PlatFormService.Data;
 using PlatFormService.Dtos;
 using PlatFormService.Models;
+using PlatFormService.SyncDataServices.Http;
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Threading.Tasks;
 
 namespace PlatFormService.Controllers
 {
@@ -15,13 +17,14 @@ namespace PlatFormService.Controllers
     public class PlatformsController : ControllerBase
     {
         private readonly IPlatformRepo _repository;
-        private readonly IMapper _mapper;
+        private readonly IMapper _mapper; 
+        private ICommadDataClient _commandDataClient;
 
-        public PlatformsController(IPlatformRepo repository,IMapper mapper)
+        public PlatformsController(IPlatformRepo repository,IMapper mapper,ICommadDataClient commandDataClient)
         {
             _repository = repository;   
             _mapper = mapper;
-
+            _commandDataClient = commandDataClient;
         }
 
         [HttpGet]
@@ -45,16 +48,25 @@ namespace PlatFormService.Controllers
         }
 
         [HttpPost]
-        public ActionResult<PlatformReadDto> CreatePlatform(PlatformCreateDto platformCreateDto)
+        public async Task<ActionResult<PlatformReadDto>> CreatePlatform(PlatformCreateDto platformCreateDto)
         {
-
             var platformModel = _mapper.Map<Platform>(platformCreateDto);
             _repository.CreatePlatform(platformModel);
             _repository.Savechanges();
 
             var platformReadDto = _mapper.Map<PlatformReadDto>(platformModel);
-            return CreatedAtRoute(nameof(GetPlatformById), new { Id=platformReadDto.Id},platformReadDto);
 
-        }
+            try
+            {
+                await _commandDataClient.SendPlatformToCommad(platformReadDto);
+            }
+            catch (Exception ex)
+            {
+                
+              Console.WriteLine($"--> Cloud not send synchronously : {ex.Message}");
+            }
+
+            return CreatedAtRoute(nameof(GetPlatformById), new { Id=platformReadDto.Id},platformReadDto);
+        } 
     }
 }
